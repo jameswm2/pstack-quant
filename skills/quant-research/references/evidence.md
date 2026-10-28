@@ -106,7 +106,7 @@ A reviewer writes the receipt to its private output directory. The coordinator v
 }
 ```
 
-The angle-bracket hash above is notation, not an executable fixture. Use the trial's `registration_sha256` and `snapshot_sha256` from `inspect --json`. Result receipts require both exact hashes. Preregistration receipts require a null snapshot hash. Verdicts are `accept`, `revise`, or `blocked`. Findings and evidence are nonempty text lists. The helper requires the declared role and stage to match the seat. It rejects author overlap, reviewer reuse across seats, duplicate seat receipts, and stale bindings. It does not determine whether evidence statements are truthful or sufficient.
+The angle-bracket hash above is notation, not an executable fixture. Use the trial's `registration_sha256` and `snapshot_sha256` from `inspect --json`. Result receipts require both exact hashes. Preregistration receipts require a null snapshot hash. Verdicts are `accept`, `revise`, or `blocked`. Findings and evidence are nonempty text lists. Review evidence entries are descriptive text that `inspect` does not resolve as file paths; actual review quality and truth remain procedural. The helper requires the declared role and stage to match the seat. It rejects author overlap, reviewer reuse across seats, duplicate seat receipts, and stale bindings. It does not determine whether evidence statements are truthful or sufficient.
 
 ## Decision receipts and report
 

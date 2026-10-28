@@ -391,6 +391,8 @@ def inspect(root: Path) -> dict:
     if review_dir.exists():
         for directory in sorted(review_dir.iterdir()):
             safe_path(directory)
+            if directory.name.startswith(".pending-") and directory.is_dir():
+                continue
             identifier(directory.name)
             review = parse_review(load(directory / "review.json"))
             require(review.value["id"] == directory.name, "review directory identity mismatch")
@@ -446,6 +448,8 @@ def inspect(root: Path) -> dict:
     if decision_dir.exists():
         for directory in sorted(decision_dir.iterdir()):
             safe_path(directory)
+            if directory.name.startswith(".pending-") and directory.is_dir():
+                continue
             identifier(directory.name)
             decision = load(directory / "decision.json")
             fields(decision, "schema id action reason evidence active_minutes units failed_attempts independent_priority_reviewer next", "decision")

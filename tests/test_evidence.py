@@ -252,6 +252,66 @@ class EvidenceCLI(unittest.TestCase):
         self.assertTrue(any("Interrupted" in w for w in self.inspect()["warnings"]))
         self.register()
 
+    def test_interrupted_review_staging_preserves_inspection(self):
+        for complete in (False, True):
+            with self.subTest(complete=complete):
+                self.run = self.base / f"reviews-{complete}"
+                self.seal()
+                if complete:
+                    self.reviews()
+                pending = self.run / "reviews/.pending-interrupted"
+                pending.mkdir(parents=True)
+                (pending / "review.json").write_text("{partial")
+                result = self.inspect(code=0 if complete else 1)
+                self.assertEqual(result["process_integrity"], "valid")
+                self.assertEqual(result["complete"], complete)
+                self.assertEqual(len(result["trials"][0]["missing_review_seats"]), 0 if complete else 4)
+                self.assertTrue(any("reviews/.pending-interrupted" in w for w in result["warnings"]))
+
+    def test_interrupted_decision_staging_preserves_inspection(self):
+        for complete in (False, True):
+            with self.subTest(complete=complete):
+                self.run = self.base / f"decisions-{complete}"
+                self.seal()
+                if complete:
+                    self.reviews()
+                decision = {"schema": 1, "id": "d001", "action": "stop", "reason": "Fixture checkpoint",
+                            "next": "Stop", "evidence": ["study/spec.json"], "active_minutes": 1, "units": 1,
+                            "failed_attempts": 0, "independent_priority_reviewer": None}
+                self.write(self.run / "decisions/d001/decision.json", decision)
+                pending = self.run / "decisions/.pending-interrupted"
+                pending.mkdir()
+                (pending / "decision.json").write_text("{partial")
+                result = self.inspect(code=0 if complete else 1)
+                self.assertEqual(result["process_integrity"], "valid")
+                self.assertEqual(result["complete"], complete)
+                self.assertEqual(result["priority_receipts"], [decision])
+                self.assertTrue(any("decisions/.pending-interrupted" in w for w in result["warnings"]))
+
+    def test_receipt_staging_does_not_hide_files_links_or_malformed_receipts(self):
+        self.seal()
+        for collection, filename in (("reviews", "review.json"), ("decisions", "decision.json")):
+            for kind in ("file", "symlink", "malformed", "missing"):
+                with self.subTest(collection=collection, kind=kind):
+                    directory = self.run / collection
+                    directory.mkdir(exist_ok=True)
+                    entry = directory / (".pending-invalid" if kind in ("file", "symlink") else "published")
+                    if kind == "file":
+                        entry.write_text("partial")
+                    elif kind == "symlink":
+                        entry.symlink_to(self.base, target_is_directory=True)
+                    else:
+                        entry.mkdir()
+                        if kind == "malformed":
+                            (entry / filename).write_text("{broken")
+                    self.assertEqual(self.inspect(code=2)["process_integrity"], "invalid")
+                    if entry.is_symlink() or entry.is_file():
+                        entry.unlink()
+                    else:
+                        for child in entry.iterdir():
+                            child.unlink()
+                        entry.rmdir()
+
     def test_concurrent_registration_cannot_overspend(self):
         plans = []
         for i in range(6):
