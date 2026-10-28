@@ -32,6 +32,7 @@ class State:
     current: str | None = None
     checkpoint: int = 0
     selected_direction: str | None = None
+    coverage: dict = field(default_factory=dict)
 
 
 def utc() -> datetime:
@@ -89,8 +90,11 @@ def fold(state, record):
         state.assignments[p['assignment']]['closed'] = p
         state.current = None
     elif kind == Kind.FRONTIER:
+        if state.status == 'externally_blocked': state.status = 'open'
         state.directions[p['direction']]['state'] = p['state']
         state.directions[p['direction']]['reopen'] = p['reopen']
+        for dimension in p.get('coverage', []):
+            state.coverage[dimension] = {'status': p['coverage_status'], 'direction': p['direction'], 'rationale': p['rationale'], 'evidence': p.get('evidence', []), 'head_before': record['previous']}
         if p.get('review'):
             state.checkpoint = len(state.records) + 1
             state.selected_direction = p.get('selected_direction')
@@ -108,7 +112,7 @@ def replay(root: Path) -> State:
     frozen = e.load(root / 'charter/spec.json')
     charter(frozen['charter'])
     timestamp(frozen['started']); timestamp(frozen['deadline'])
-    state = State(frozen, e.digest(e.canonical(frozen)))
+    state = State(frozen, e.digest(e.canonical(frozen)), coverage={dimension: {'status': 'unknown'} for dimension in frozen['charter']['scope']})
     paths = sorted((root / 'events').glob('*')) if (root / 'events').exists() else []
     for index, path in enumerate([p for p in paths if not p.name.startswith('.pending-')], 1):
         e.require(path.name == f'{index:06d}', 'ledger sequence gap or unexpected entry')
@@ -134,11 +138,15 @@ def due(state):
     c = state.charter['charter']; t = c['triggers']
     recent = state.records[state.checkpoint:]
     closed = [r['payload'] for r in recent if r['payload']['kind'] == 'close']
-    assigned = [r['payload'] for r in recent if r['payload']['kind'] == 'assign' and r['payload']['action'] not in {'synthesize', 'replicate'}]
+    assigned = [r['payload'] for r in state.records if r['payload']['kind'] == 'assign' and r['payload']['action'] not in {'synthesize', 'replicate'}]
     families = [state.directions[a['direction']]['family'] for a in assigned]
     reasons = []
     if len(closed) >= t['units']: reasons.append('units')
-    if families and families.count(families[-1]) >= t['same_family']: reasons.append('same_family')
+    same_family_run = 0
+    for family in reversed(families):
+        if family != families[-1]: break
+        same_family_run += 1
+    if same_family_run >= t['same_family']: reasons.append('same_family')
     if sum(not x['information_gain'] for x in closed) >= t['no_information']: reasons.append('no_information')
     if sum(x['execution'] != 'completed' for x in closed) >= t['failures']: reasons.append('failures')
     if sum(x['active_minutes'] for x in closed) >= t['active_minutes']: reasons.append('active_minutes')
@@ -186,7 +194,7 @@ def validate(root, state, p, now):
     kind = Kind(p['kind']); c = state.charter['charter']
     e.identifier(p['key']); refs(root, p)
     now_check(state, now)
-    e.require(state.status == 'open', 'campaign is terminal')
+    e.require(state.status == 'open' or (state.status == 'externally_blocked' and kind == Kind.FRONTIER), 'campaign is terminal')
     if kind in {Kind.RESERVED, Kind.REGISTERED}: raise e.Invalid('internal trial operations are not commit proposals')
     if kind == Kind.DIRECTION:
         e.identifier(p['id']); e.identifier(p['family'])
@@ -204,7 +212,7 @@ def validate(root, state, p, now):
         e.require(state.current is None and p['id'] not in state.assignments, 'assignment conflict')
         e.require(p['direction'] in state.directions, 'unknown direction')
         e.require(state.selected_direction is None or p['direction'] == state.selected_direction or p['action'] in {'synthesize','replicate'}, 'follow reviewed frontier choice')
-        e.require(state.directions[p['direction']]['state'] not in {'parked', 'retired'}, 'direction requires explicit reopening')
+        e.require(p['action'] == 'synthesize' or state.directions[p['direction']]['state'] not in {'parked', 'retired'}, 'direction requires explicit reopening')
         e.require(p['action'] in {'deepen', 'refine', 'expand', 'pivot', 'diagnose', 'replicate', 'synthesize'}, 'unknown action')
         texts(p, 'question evidence_needed stop decision_change alternative diagnostic synthesis rationale reversal')
         positive(p['seconds'], 'seconds')
@@ -215,7 +223,7 @@ def validate(root, state, p, now):
         e.require(len(state.reservations) + p['trials'] <= c['trial_limit'] - (0 if reserve else c['reserve_trials']), 'assignment exceeds trial capacity or reserve')
         e.require(not reconciliation(root, state), 'unreconciled child registrations block spending')
         e.require(not any(not r['registered'] for r in state.reservations.values()), 'pending registration must be recovered first')
-        if due(state) and not reserve:
+        if due(state) and not reserve and state.selected_direction != p['direction']:
             review(root, state, p, True)
             x = p.get('depth_exception')
             e.require(x is not None, 'breadth review must choose another family via frontier checkpoint or grant bounded depth exception')
@@ -226,9 +234,15 @@ def validate(root, state, p, now):
                 previous = {v['sha256'] for r in old for v in r.get('evidence', [])}
                 e.require(any(v['sha256'] not in previous for v in p.get('evidence', [])), 'depth renewal requires fresh material evidence')
                 e.require(p.get('material_basis') in {v['sha256'] for v in p.get('evidence', []) if v['sha256'] not in previous and v['sha256'] != e.digest(e.canonical(p['review']))}, 'name new material basis distinct from review')
-        failures = [a['closed'] for a in state.assignments.values() if a['direction'] == p['direction'] and a['closed'] and a['closed']['execution'] != 'completed']
-        if len(failures) >= c['triggers']['failures']:
-            e.require(p['action'] == 'diagnose' or p.get('repair_basis') not in {None, *[x.get('failure_signature') for x in failures]}, 'unchanged execution failure requires diagnosis or new repair basis')
+        family = state.directions[p['direction']]['family']
+        family_work = [a for a in state.assignments.values() if state.directions[a['direction']]['family'] == family]
+        failed = [a for a in family_work if a['closed'] and a['closed']['execution'] != 'completed']
+        if len(failed) >= c['triggers']['failures'] and not reserve:
+            previous_evidence = {ref['sha256'] for a in family_work for ref in a.get('evidence', [])}
+            fresh = {ref['sha256'] for ref in p.get('evidence', []) if ref['sha256'] not in previous_evidence and ref['sha256'] != e.digest(e.canonical(p.get('review')))}
+            changed_basis = p.get('repair_basis') in fresh
+            first_diagnostic = p['action'] == 'diagnose' and not any(a['action'] == 'diagnose' for a in family_work)
+            e.require(first_diagnostic or changed_basis, 'repeated family failure requires one bounded diagnosis or fresh non-review repair evidence')
     elif kind == Kind.CLOSE:
         e.require(p['assignment'] == state.current, 'not the active assignment')
         texts(p, 'summary next')
@@ -259,13 +273,28 @@ def validate(root, state, p, now):
             if assigned and any(trigger in due(state) for trigger in ('same_family','no_information')):
                 previous_family = state.directions[assigned[-1]['direction']]['family']
                 e.require(state.directions[choice]['family'] != previous_family, 'same-family continuation requires bounded depth exception on assignment')
+        if state.status == 'externally_blocked':
+            review(root, state, p, True)
+            texts(p, 'unblock_basis')
         if p.get('coverage'):
+            e.require(any(ref['sha256'] != e.digest(e.canonical(p.get('review'))) for ref in p.get('evidence', [])), 'coverage requires evidence distinct from review')
+            e.require(p.get('coverage_status') in {'unknown','unsupported','contested','resolved'}, 'explicit coverage status required')
             e.require(set(p['coverage']) <= set(c['scope']), 'unknown coverage')
     elif kind == Kind.TERMINAL:
         e.require(state.current is None, 'close active assignment before terminal decision')
         e.require(p['status'] in {'complete', 'budget_exhausted', 'externally_blocked', 'host_needs_continuation'}, 'unknown terminal status')
         texts(p, 'rationale unresolved next')
-        if p['status'] == 'complete': review(root, state, p, True)
+        if p['status'] == 'complete':
+            review(root, state, p, True)
+            texts(p, 'completion_assessment')
+            e.require(all(cell['status'] in {'resolved','unsupported'} for cell in state.coverage.values()), 'original scope requires explicit adjudication before completion')
+            e.require(any(ref['sha256'] != e.digest(e.canonical(p['review'])) for ref in p.get('evidence', [])), 'completion requires evidence distinct from review')
+        if p['status'] == 'budget_exhausted':
+            at_ceiling = now >= timestamp(state.charter['deadline']) or len(state.reservations) >= c['trial_limit']
+            if not at_ceiling:
+                texts(p, 'resource_exhaustion')
+                review(root, state, p, True)
+                e.require(any(ref['sha256'] != e.digest(e.canonical(p['review'])) for ref in p.get('evidence', [])), 'resource exhaustion requires cited resource evidence')
         if p['status'] == 'externally_blocked': texts(p, 'unblock routes_considered')
 
 
@@ -316,6 +345,7 @@ def trial(root: Path, assignment: str, plan_file: Path, now=None, _after_reserve
             e.require(state.status == 'open' and state.current == assignment, 'trial requires active assignment')
             a = state.assignments[assignment]; c = state.charter['charter']
             e.require(now < timestamp(a['opened'])+timedelta(seconds=a['seconds']) and now < timestamp(state.charter['deadline']), 'assignment expired')
+            e.require(all(v['registered'] for v in state.reservations.values()), 'recover pending registration before new trial')
             issues = reconciliation(root, state)
             own_unreserved = f'unreserved trial: {study}/{plan.id}'
             e.require(not [issue for issue in issues if issue != own_unreserved], 'unreserved child registration blocks spending')
@@ -349,12 +379,44 @@ def view(root: Path, now=None):
     elif current: action = 'close active assignment at safe boundary' if overrun or not remaining else 'execute bounded assignment then close'
     elif not remaining: action = 'final accounting and budget_exhausted decision'
     elif remaining <= c['reserve_seconds']: action = 'synthesize or replicate within remaining budget'
+    elif state.selected_direction: action = 'commit bounded assignment for reviewed alternative ' + state.selected_direction
     elif due(state): action = 'independent frontier challenge before routine research'
     else: action = 'compare alternatives and commit bounded assignment'
     inspections = {}
     for study in {r['study'] for r in state.reservations.values() if r['registered']}:
         inspections[study] = e.inspect(root / 'studies' / study)
-    return {'schema':1, 'head':state.head, 'charter':state.charter, 'status':state.status,'frontier':state.directions,'assignments':state.assignments,'current':state.current,'charged_trials':len(state.reservations),'remaining_trials':c['trial_limit']-len(state.reservations),'remaining_wall_seconds':remaining,'pending_registrations':pending,'reconciliation':issues,'review_due':due(state),'selected_direction':state.selected_direction,'overrun':overrun,'clock_backwards':backwards,'next_action':action,'studies':inspections,'staging':[str(p.relative_to(root)) for p in root.rglob('.pending-*')],'limitations':['Durable state does not provide host liveness.','Reported information gain, materiality and reviewer independence require qualitative judgment.','Campaign decisions cannot override study evidence gates.']}
+    next_command = [sys.executable, str(Path(__file__).resolve()), 'view', str(root), '--json']
+    if pending:
+        reservation = state.reservations[pending[0]]
+        next_command = [sys.executable, str(Path(__file__).resolve()), 'trial', str(root), '--assignment', reservation['assignment'], '--plan', str(root / 'plans' / pending[0] / 'plan.json')]
+    continuation = f"Use quant-resume on {root}. Original mission: {c['mission']}. Frozen deadline: {state.charter['deadline']}. Verify ledger head {state.head} and child evidence; current assignment: {state.current or 'none'}. Next permitted action: {action}. Preserve all prior charges and completed work. Continue within this existing authorized host session; do not reset the deadline or start a replacement session."
+    return {
+        'schema': 1,
+        'head': state.head,
+        'charter': state.charter,
+        'status': state.status,
+        'frontier': state.directions,
+        'coverage': state.coverage,
+        'decisions': [r for r in state.records if r['payload']['kind'] in {'frontier', 'terminal'}],
+        'assignments': state.assignments,
+        'current': state.current,
+        'charged_trials': len(state.reservations),
+        'remaining_trials': c['trial_limit'] - len(state.reservations),
+        'remaining_wall_seconds': remaining,
+        'reservations': state.reservations,
+        'pending_registrations': pending,
+        'reconciliation': issues,
+        'review_due': due(state),
+        'selected_direction': state.selected_direction,
+        'overrun': overrun,
+        'clock_backwards': backwards,
+        'next_action': action,
+        'next_command': next_command,
+        'continuation_prompt': continuation,
+        'studies': inspections,
+        'staging': [str(p.relative_to(root)) for p in root.rglob('.pending-*')],
+        'limitations': ['Durable state does not provide host liveness.', 'Reported information gain, materiality and reviewer independence require qualitative judgment.', 'Campaign decisions cannot override study evidence gates.'],
+    }
 
 
 def main(argv=None):

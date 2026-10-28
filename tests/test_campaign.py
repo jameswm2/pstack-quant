@@ -118,6 +118,35 @@ class Campaign(unittest.TestCase):
         with self.assertRaises(e.Invalid): self.assign('a3')
         self.assign('diagnosis',direction='d2',action='diagnose',trials=0)
 
+    def test_same_family_checkpoint_cannot_launder_fixation(self):
+        self.direction(); self.assign(); self.close(information_gain=False)
+        self.assign('a2'); self.close(information_gain=False)
+        with self.assertRaises(e.Invalid):
+            self.put({'kind':'frontier','direction':'d1','selected_direction':'d1','state':'active','reopen':'New evidence','rationale':'Continue','reversal':'Failure','review':self.review(),'evidence':[self.ref('launder')]})
+        self.assertIn('no_information',c.view(self.root,self.now)['review_due'])
+
+    def test_early_checkpoint_cannot_reset_family_run(self):
+        self.direction(); self.assign(); self.close()
+        self.put({'kind':'frontier','direction':'d1','state':'active','rationale':'Premature routine checkpoint','reopen':'New evidence','reversal':'Confound','review':self.review(),'evidence':[self.ref('early-checkpoint')]})
+        self.assign('a2'); self.close()
+        self.assertIn('same_family',c.view(self.root,self.now)['review_due'])
+        with self.assertRaises(e.Invalid): self.assign('a3')
+
+    def test_diagnosis_failure_tracks_family_and_needs_material_repair(self):
+        spec=charter(); spec['triggers']={k:100 for k in spec['triggers']}; spec['triggers']['failures']=2
+        other=self.root/'diagnostic'; c.start(other,spec,self.now)
+        self.root=other
+        self.direction(); self.direction('variant','timing','d1')
+        self.assign(); self.close(execution='failed',outcome='not_evaluated',failure_signature='input')
+        self.assign('a2',direction='variant'); self.close(execution='failed',outcome='not_evaluated',failure_signature='input')
+        exception={'seconds':3600,'trials':1,'discriminator':'Input health','neglected_value':'Other family infeasible','reversal':'Diagnostic fails'}
+        self.assign('diag',action='diagnose',trials=0,review=self.review(),depth_exception=exception,evidence=[self.ref('diag')])
+        self.close(execution='failed',outcome='not_evaluated',failure_signature='input')
+        for kwargs in ({'action':'diagnose'},{'action':'refine','repair_basis':'renamed'}):
+            with self.assertRaises(e.Invalid): self.assign('again',direction='variant',review=self.review(),depth_exception=exception,material_basis='a'*64,evidence=[self.ref('same')],**kwargs)
+        basis=self.ref('repair','Fixture changed parser demonstrated against failed input')
+        self.assign('repaired',direction='variant',action='refine',review=self.review(),depth_exception=exception,material_basis=basis['sha256'],repair_basis=basis['sha256'],evidence=[basis])
+
     def test_trial_recovery_before_and_after_registration(self):
         self.direction(); self.assign(); path=self.plan()
         def crash(): raise RuntimeError('simulated interruption')
@@ -138,6 +167,71 @@ class Campaign(unittest.TestCase):
         packet=c.trial(self.root,'a1',path,self.now)
         self.assertEqual(packet['charged_trials'],1); self.assertFalse(packet['reconciliation'])
         with self.assertRaises(e.Invalid): self.close(outcome='supported')
+
+    def test_budget_status_requires_actual_boundary(self):
+        with self.assertRaises(e.Invalid):
+            self.put({'kind':'terminal','status':'budget_exhausted','rationale':'Arbitrary stop','unresolved':'Everything','next':'Report'})
+        self.assertEqual(c.view(self.root,self.now)['status'],'open')
+
+    def test_global_trial_reserve_and_failed_charges(self):
+        spec=charter(); spec['trial_limit']=3
+        other=self.root/'small'; c.start(other,spec,self.now); self.root=other
+        self.direction(); self.assign(trials=2)
+        path=self.plan(); c.trial(self.root,'a1',path,self.now)
+        plan=e.load(path); plan['id']='t002'; path.write_bytes(e.canonical(plan)); c.trial(self.root,'a1',path,self.now)
+        self.close(execution='abandoned',outcome='not_evaluated',failure_signature='fixture stop')
+        self.assertEqual(c.view(self.root,self.now)['charged_trials'],2)
+        with self.assertRaises(e.Invalid): self.assign('a2',trials=1)
+        self.assign('replication',action='replicate',trials=1)
+        plan['id']='t003'; path.write_bytes(e.canonical(plan)); packet=c.trial(self.root,'replication',path,self.now)
+        self.assertEqual(packet['charged_trials'],3); self.assertEqual(packet['remaining_trials'],0)
+
+    def test_sequence_gap_is_not_truncated(self):
+        self.direction()
+        (self.root/'events/000001').rename(self.root/'events/000002')
+        with self.assertRaises(e.Invalid): c.view(self.root,self.now)
+
+    def test_concurrent_expected_head_writers(self):
+        root=self.root/'concurrent'; c.start(root,charter())
+        head=c.view(root)['head']; paths=[]
+        for i in range(2):
+            p={'kind':'terminal','key':f'handoff{i}','status':'host_needs_continuation','rationale':'Host boundary','unresolved':'Research pending','next':'Resume same ledger'}
+            path=self.root/f'writer{i}.json'; path.write_bytes(e.canonical(p)); paths.append(path)
+        processes=[subprocess.Popen([sys.executable,str(ROOT/'tools/campaign.py'),'commit',str(root),'--proposal',str(path),'--expect',head],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True) for path in paths]
+        codes=[]
+        for process in processes:
+            process.communicate(); codes.append(process.returncode)
+        self.assertEqual(sorted(codes),[0,2]); self.assertEqual(len(c.replay(root).records),1)
+
+    def test_early_synthesis_and_adequacy_requires_review(self):
+        self.direction(); self.assign(action='synthesize',trials=0); self.close()
+        proposal={'kind':'terminal','status':'complete','rationale':'Adequate fixture synthesis','unresolved':'Explicit fixture limits','next':'Report'}
+        with self.assertRaises(e.Invalid): self.put(proposal)
+        proposal.pop('key'); proposal['review']=self.review()
+        with self.assertRaises(e.Invalid): self.put(proposal)
+        proposal.pop('key')
+        self.put({'kind':'frontier','direction':'d1','state':'active','rationale':'All original fixture questions adjudicated','reopen':'New evidence','reversal':'Contradiction','coverage':['timing','compensation'],'coverage_status':'resolved','review':self.review(),'evidence':[self.ref('adequacy')]})
+        proposal['review']=self.review(); proposal['completion_assessment']='Explicit assessment against frozen completion question'; proposal['evidence']=[self.ref('synthesis')]
+        self.put(proposal)
+        self.assertEqual(c.view(self.root,self.now)['status'],'complete')
+        self.assertGreater(c.view(self.root,self.now)['remaining_wall_seconds'],0)
+
+    def test_blocked_direction_allows_alternative_and_coverage_survives(self):
+        self.direction(); self.direction('d2','compensation')
+        self.put({'kind':'frontier','direction':'d1','state':'parked','rationale':'Reviewer unavailable','reopen':'Independent reviewer becomes available','reversal':'Different test possible'})
+        self.assign(direction='d2'); self.close()
+        self.put({'kind':'frontier','direction':'d2','state':'active','rationale':'Fixture scope challenged','reopen':'New evidence','reversal':'Confound discovered','coverage':['compensation'],'coverage_status':'contested','review':self.review(),'evidence':[self.ref('scope')]})
+        packet=c.view(self.root,self.now)
+        self.assertEqual(packet['coverage']['compensation']['status'],'contested')
+        self.assertTrue(packet['decisions']); self.assertIn(str(self.root),packet['continuation_prompt'])
+
+    def test_reservation_plan_corruption_and_pending_resume_command(self):
+        self.direction(); self.assign(); path=self.plan()
+        def crash(): raise RuntimeError('fixture crash')
+        with self.assertRaises(RuntimeError): c.trial(self.root,'a1',path,self.now,_after_reserve=crash)
+        packet=c.view(self.root,self.now); self.assertIn('trial',packet['next_command'])
+        frozen=next((self.root/'plans').glob('*/plan.json')); frozen.write_text('{}')
+        with self.assertRaises(e.Invalid): c.view(self.root,self.now)
 
     def test_real_cli_reopen(self):
         path=self.root/'charter-input.json'; path.write_bytes(e.canonical(charter()))
