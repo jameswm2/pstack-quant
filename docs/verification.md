@@ -28,10 +28,10 @@ codex -c 'marketplaces.pstack-quant.source_type="local"' \
 
 Discovery is verified. Installation into a user's host profile and research execution by a native host model are not verified by listing a package.
 
-The local environment has no Claude Code CLI. A separate CI job invokes the official CLI's manifest validator, but CI cannot run remotely until repository publication succeeds. Neither static checks nor manifest validation establish native Claude research execution.
+The original local verification environment had no Claude Code CLI. A separate CI job invokes the official CLI's manifest validator. Remote CI had not run during that initial verification. Neither static checks nor manifest validation establish native Claude research execution.
 
 ## Delivery
 
-The target is `https://github.com/jameswm2/pstack-quant`. The connected GitHub integration can read it, but rejected initial file creation with HTTP 403, `Resource not accessible by integration`. Shell GitHub access also failed DNS resolution. A browser fallback requires approval unavailable in this session. No remote file, branch, or pull request was created.
+The target is `https://github.com/jameswm2/pstack-quant`. During the initial local build, the connected GitHub integration rejected file creation with HTTP 403, `Resource not accessible by integration`. Shell GitHub access failed DNS resolution, and the browser fallback required unavailable approval. That run produced verified local archives without creating remote changes.
 
-The local Git repository, installable archive, and Git bundle are prepared for delivery. Publishing the implementation to the requested repository remains outstanding and requires a working write-capable connection. No alternate hosting, account changes, merge, or public plugin release was attempted.
+On resumption, network access and an authenticated GitHub CLI became available. The repository now had an initial placeholder commit. Publication preserves that commit as feature-branch ancestry and replaces its trivial `readme` placeholder with the complete `README.md`. The reviewed implementation is delivered on `codex/quant-research-orchestration` through a pull request against the existing `main` branch. No force push, merge into `main`, or public plugin-directory release is part of this delivery.

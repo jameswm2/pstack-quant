@@ -23,7 +23,7 @@ Invoke `$quant-research` directly or use normal domain-appropriate skill selecti
 
 For a local Claude packaging check, run `claude plugin validate .` from this repository. For a local session without marketplace installation, use `claude --plugin-dir /absolute/path/to/pstack-quant`.
 
-After this implementation is published to `jameswm2/pstack-quant`, the same marketplace commands accept `jameswm2/pstack-quant` instead of the local path. Repository publication is currently pending because the connected GitHub integration rejected file creation with HTTP 403. The local package is complete independently of that connection.
+The source repository is [jameswm2/pstack-quant](https://github.com/jameswm2/pstack-quant). The initial implementation is on `codex/quant-research-orchestration` for review. Use the local installation steps above until it merges into `main`. Once the plugin is on the default branch, the marketplace commands accept `jameswm2/pstack-quant` instead of the local path.
 
 The plugin has no session hooks and does not change user configuration. It uses the host's available dispatch tools and existing pstack model configuration. Required reviewers remain blocked when independent agents cannot run. Repeated configured model entries always mean separate sessions.
 
