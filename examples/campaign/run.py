@@ -14,7 +14,7 @@ import run as synthetic
 
 
 def simulate(root):
-    now = datetime(2030, 1, 1, tzinfo=timezone.utc)
+    now = datetime(2000, 1, 1, tzinfo=timezone.utc)
     charter = e.load(Path(__file__).with_name('charter.json'))
     c.start(root, charter, now)
     number = 0
@@ -68,7 +68,7 @@ def simulate(root):
     basis=artifact('live-discriminator.json',{'fixture':True,'new_observation':'Repair creates an identifiable timing discriminator'})
     assign('depth-test','timing',14400,depth_exception={'seconds':14400,'trials':0,'discriminator':'Repaired timing falsifier','neglected_value':'Compensation premise retired in fixture','reversal':'No separating observation'},evidence=[basis])
     now += timedelta(hours=4); close()
-    now = datetime(2030,1,1,tzinfo=timezone.utc)+timedelta(hours=19)
+    now = datetime(2000,1,1,tzinfo=timezone.utc)+timedelta(hours=19)
     try:
         assign('too-late','timing',3600)
         raise AssertionError('protected reserve was spent')
