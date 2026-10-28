@@ -56,6 +56,93 @@ class Campaign(unittest.TestCase):
         plan=example.make_plan(e.digest(e.canonical({'rows':example.development_rows()})))
         path=self.root/'caller-plan.json'; path.write_bytes(e.canonical(plan)); return path
 
+    def test_null_close_rejected_without_publication(self):
+        head=c.view(self.root,self.now)['head']
+        with self.assertRaises(e.Invalid): self.close(assignment=None)
+        self.assertEqual(c.view(self.root,self.now)['head'],head)
+
+    def test_internal_keys_are_disjoint_from_public_keys(self):
+        self.direction(); self.assign(); path=self.plan(); plan=e.load(path)
+        for prefix in ('reserve-', 'register-'):
+            self.put({'kind':'direction','key':prefix+plan['study']['id']+'--'+plan['id'],
+                      'id':prefix+'variant','family':'timing','parent':'d1','claim':'Variant','predictions':'Test',
+                      'disconfirmers':'Null','rationale':'Refine','scope':['timing'],'state':'unexplored'})
+        packet=c.trial(self.root,'a1',path,self.now)
+        self.assertEqual(packet['charged_trials'],1)
+        self.assertFalse(packet['pending_registrations'])
+
+    def test_compound_trial_identity(self):
+        self.direction(); self.assign(trials=2); path=self.plan(); plan=e.load(path)
+        for study, trial in [('alpha--beta','gamma'),('alpha','beta--gamma')]:
+            plan['study']['id']=study; plan['id']=trial; path.write_bytes(e.canonical(plan))
+            c.trial(self.root,'a1',path,self.now)
+            c.trial(self.root,'a1',path,self.now)
+        self.assertEqual(c.view(self.root,self.now)['charged_trials'],2)
+
+    def test_child_preflight_rejections_do_not_charge_or_freeze(self):
+        self.direction(); self.assign(trials=3); path=self.plan(); plan=e.load(path)
+        plan['study']['budget']['max_trials']=1; path.write_bytes(e.canonical(plan))
+        c.trial(self.root,'a1',path,self.now)
+        original=copy.deepcopy(plan)
+        for change in ('protocol','slots','trial'):
+            plan=copy.deepcopy(original)
+            if change == 'protocol': plan['study']['question']='Incompatible question'; plan['id']='other'
+            elif change == 'slots': plan['id']='other'
+            else: plan['hypothesis']='Incompatible same-ID hypothesis'
+            path.write_bytes(e.canonical(plan)); head=c.view(self.root,self.now)['head']
+            with self.assertRaises(e.Invalid): c.trial(self.root,'a1',path,self.now)
+            packet=c.view(self.root,self.now)
+            self.assertEqual(packet['head'],head)
+            self.assertEqual(packet['charged_trials'],1)
+            self.assertFalse(packet['pending_registrations'])
+            self.assertEqual(len(list((self.root/'plans').iterdir())),1)
+
+    def test_abandoned_registration_retains_charge_and_allows_other_work(self):
+        self.direction(); self.assign(); path=self.plan()
+        def crash(): raise RuntimeError('registration unavailable after reservation')
+        with self.assertRaisesRegex(RuntimeError,'registration unavailable'):
+            c.trial(self.root,'a1',path,self.now,_after_reserve=crash)
+        packet=c.view(self.root,self.now); slot=packet['pending_registrations'][0]
+        proposal={'kind':'abandon_registration','reservation':slot,'reason':'Unexecuted interrupted registration',
+                  'evidence':[self.ref('failure','Observed post-reservation interruption; no child registration exists.')]}
+        self.put(proposal)
+        self.assertEqual(c.view(self.root,self.now)['charged_trials'],1)
+        self.assertFalse(c.view(self.root,self.now)['pending_registrations'])
+        with self.assertRaises(e.Invalid): c.trial(self.root,'a1',path,self.now)
+        self.close(execution='abandoned',outcome='not_evaluated',failure_signature='registration unavailable')
+        self.assign('a2'); plan=e.load(path); plan['id']='unrelated'; path.write_bytes(e.canonical(plan))
+        packet=c.trial(self.root,'a2',path,self.now)
+        self.assertEqual(packet['charged_trials'],2)
+        self.assertEqual(len(packet['reservations']),2)
+
+    def test_registered_pending_reservation_cannot_be_abandoned(self):
+        self.direction(); self.assign(); path=self.plan()
+        def crash(): raise RuntimeError('receipt interrupted')
+        with self.assertRaises(RuntimeError): c.trial(self.root,'a1',path,self.now,_after_register=crash)
+        slot=c.view(self.root,self.now)['pending_registrations'][0]; head=c.view(self.root,self.now)['head']
+        with self.assertRaises(e.Invalid):
+            self.put({'kind':'abandon_registration','reservation':slot,'reason':'Do not erase work','evidence':[self.ref('failure')]})
+        self.assertEqual(c.view(self.root,self.now)['head'],head)
+        self.assertFalse(c.trial(self.root,'a1',path,self.now)['pending_registrations'])
+
+    def test_reviewed_unblock_requires_cited_nonreview_basis(self):
+        self.direction()
+        self.put({'kind':'terminal','status':'externally_blocked','rationale':'No input','unresolved':'Input',
+                  'next':'Await authorization','unblock':'Input authorized','routes_considered':'No useful permitted route'})
+        packet=c.view(self.root,self.now)
+        self.assertIn('reviewed',packet['next_action'])
+        proposal={'kind':'frontier','direction':'d1','state':'active','rationale':'Access changed','reopen':'Authorization',
+                  'reversal':'Access revoked','review':self.review(),'unblock_basis':'Free text assertion'}
+        with self.assertRaises(e.Invalid): self.put(proposal)
+        proposal.pop('key'); proposal['unblock_basis']=e.digest(e.canonical(proposal['review']))
+        with self.assertRaises(e.Invalid): self.put(proposal)
+        proposal.pop('key'); basis=self.ref('authorization','Fixture permission changed')
+        proposal['evidence'].append(basis); proposal['unblock_basis']=basis['sha256']
+        reopened=self.put(proposal)
+        self.assertEqual(reopened['status'],'open')
+        self.assertEqual(reopened['charter'],packet['charter'])
+        self.assertEqual(reopened['charged_trials'],packet['charged_trials'])
+
     def test_frozen_clock_budget_and_context_recovery(self):
         original=c.view(self.root,self.now)
         c.start(self.root,charter(),self.now+timedelta(hours=4))
