@@ -1,0 +1,10 @@
+{
+  "name": "pstack-quant",
+  "version": "0.1.0",
+  "description": "Bounded quantitative research with independent review and immutable evidence dossiers.",
+  "author": {
+    "name": "jameswm2"
+  },
+  "repository": "https://github.com/jameswm2/pstack-quant",
+  "license": "MIT"
+}
