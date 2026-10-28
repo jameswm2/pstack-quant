@@ -13,3 +13,7 @@ A native assignment can use a general-purpose agent with a prompt that reads `<p
 When `Agent` is unavailable, keep required review seats blocked and continue nongated work. A single session performing multiple perspectives is not independent review. Report missing capabilities in the run's decision receipt and final report.
 
 The [Claude plugin reference](https://code.claude.com/docs/en/plugins-reference) defines manifest and component paths. The [marketplace reference](https://code.claude.com/docs/en/plugin-marketplaces) defines local relative plugin sources. Local native Claude execution was unavailable during development. The CI manifest-validation job uses the official CLI and does not establish research execution or model behavior.
+
+## Existing-session campaigns
+
+Route long runs and repeated multi-study missions to [quant-campaign](../../quant-campaign/SKILL.md). The campaign coordinator owns the cumulative ledger and bounded commitments; preserve configured independent seats and private worker outputs. Discover actual native continuation and honor its authorization policy. Durable state supports compaction and manual or native resume but does not schedule wakeups or guarantee host uptime. Do not launch replacement sessions or install hooks.

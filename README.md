@@ -1,8 +1,39 @@
 # pstack-quant
 
-Bounded, asset-agnostic quantitative financial research for Codex and Claude Code. Coordinate hypotheses, temporal data audits, preregistered experiments, independent challenges, reproduction, and reporting. Keep failed attempts and negative findings visible.
+Run long-form autonomous quantitative research inside an existing Codex or Claude Code session. Compare genuinely different mechanisms, justify deeper tests, preserve failed attempts and negative findings, and reserve time for synthesis. A cumulative campaign ledger carries the original mission, frontier, wall deadline, trial charges, and next action across context loss.
 
-The plugin supplies shared skills and a Python evidence helper. It does not supply data, a backtesting engine, live trading, statistical validity, or deployment approval. Forecasting, event studies, factor research, risk models, portfolio analysis, and strategy experiments can all use the same dossier contract.
+Start with `$quant-campaign` for broad missions or repeated studies. Use `$quant-research` for one bounded study. Research judgment stays with the coordinator and independent roles; local standard-library tools validate campaign accounting and immutable study evidence. The plugin supplies no market data, backtesting engine, live trading, or deployment approval.
+
+```text
+Use quant-campaign to investigate [mission] for up to 20 wall hours inside this session,
+using only [authorized data and compute], with [trial cap]. Compare distinct mechanisms,
+justify depth, preserve failures, and reserve time for synthesis. Stop early if adequate.
+```
+
+The skill frames mission-specific constraints before freezing a charter. Twenty hours is a ceiling, including host downtime. Durable state supports recovery; it does not guarantee host liveness. Native continuation is used only when available and authorized. No external launcher, daemon, global hook, or replacement session is installed.
+
+For unattended continuation, explicitly authorize the host's native Goal or continuation loop when available:
+
+```text
+Use quant-campaign for [mission] with [authorized data and compute] and [trial cap].
+Create a native Goal or continuation loop for this campaign if this host provides one.
+Continue bounded work for up to 20 wall hours, preserving the original deadline on resume.
+Stop on independently reviewed adequacy, budget exhaustion, or an unresolved external prerequisite.
+Finish with an evidence-linked report of findings, coverage gaps, and unresolved review gates.
+```
+
+Without native continuation, the coordinator works through the active host turn and saves a concrete resume action at the host boundary.
+
+```sh
+python3 tools/campaign.py start research/campaign --charter examples/campaign/charter.json
+python3 tools/campaign.py view research/campaign --json
+python3 tools/campaign.py commit research/campaign --proposal decision.json --expect HEAD_FROM_VIEW
+python3 tools/campaign.py trial research/campaign --assignment A01 --plan trial-plan.json
+```
+
+The shipped charter is an educational local-data example; customize the mission and permissions first. The [campaign reference](skills/quant-campaign/references/campaign.md) defines every payload. To resume, say: `Use quant-resume on research/campaign. Verify its ledger and child evidence, reconcile interrupted registration, then continue its next authorized bounded assignment without resetting the deadline.`
+
+Run the accelerated offline campaign with `python3 examples/campaign/run.py /tmp/new-campaign-demo`. It simulates unequal commitments and a twenty-hour boundary with explicit fixture priority reviews. Missing scientific reviews stay blocked. It does not validate twenty-hour host reliability or produce a real market finding.
 
 ## Install and invoke
 
@@ -13,17 +44,17 @@ codex plugin marketplace add /absolute/path/to/pstack-quant
 codex plugin add pstack-quant@pstack-quant
 ```
 
-Invoke `$quant-research` directly or use normal domain-appropriate skill selection. For Claude Code, run these commands in its interactive session:
+Invoke `$quant-campaign` directly or use normal domain-appropriate skill selection. For Claude Code, run these commands in its interactive session:
 
 ```text
 /plugin marketplace add /absolute/path/to/pstack-quant
 /plugin install pstack-quant@pstack-quant
-/pstack-quant:quant-research Design a bounded publication-lagged forecasting experiment.
+/pstack-quant:quant-campaign Research [mission] for up to 20 wall hours using [authorized data and compute] with [trial cap].
 ```
 
 For a local Claude packaging check, run `claude plugin validate .` from this repository. For a local session without marketplace installation, use `claude --plugin-dir /absolute/path/to/pstack-quant`.
 
-The source repository is [jameswm2/pstack-quant](https://github.com/jameswm2/pstack-quant). The initial implementation is on `codex/quant-research-orchestration` for review. Use the local installation steps above until it merges into `main`. Once the plugin is on the default branch, the marketplace commands accept `jameswm2/pstack-quant` instead of the local path.
+The source repository is [jameswm2/pstack-quant](https://github.com/jameswm2/pstack-quant). The marketplace commands also accept `jameswm2/pstack-quant` instead of the local path.
 
 The plugin has no session hooks and does not change user configuration. It uses the host's available dispatch tools and existing pstack model configuration. Required reviewers remain blocked when independent agents cannot run. Repeated configured model entries always mean separate sessions.
 
@@ -50,10 +81,11 @@ python3 examples/synthetic/run.py negative-control
 
 ## Use the research skills
 
-The main skill owns end-to-end coordination. Focused skills narrow a research request without duplicating the lifecycle contract:
+The campaign skill owns long missions; the research skill owns individual studies. Focused skills narrow a research request without duplicating the lifecycle contract:
 
 | Skill | Purpose |
 | --- | --- |
+| `quant-campaign` | Compare mechanisms across bounded studies with cumulative recovery and budgets |
 | `quant-research` | Coordinate a bounded study |
 | `quant-design` | Form a falsifiable question and draft TrialPlan |
 | `quant-data-audit` | Audit point-in-time provenance and availability |
@@ -97,6 +129,6 @@ python3 tools/check_package.py
 
 Tests exercise real CLI commands, budget races, retry conflicts, failed attempts, tampering, unsafe paths, review binding and declared independence, blocked holdouts, and repeatable offline outputs. CI runs stdlib checks on supported Python versions and separately runs the official Claude CLI's manifest validator. That validator does not execute models or research.
 
-Native Codex `0.160.0` discovered this final package as `pstack-quant@pstack-quant`, version `0.1.0`, using an explicit local marketplace source. Discovery does not establish installation or skill execution. Local Claude CLI execution was unavailable, so native Claude research execution remains unverified. Structural checks do not establish cross-host behavioral parity. The [verification record](docs/verification.md) lists the checks and remaining limits.
+Native Codex `0.160.0` discovered this package as `pstack-quant@pstack-quant`, version `0.2.0`, using an explicit local marketplace source. Discovery does not establish installation or skill execution. Local Claude CLI execution was unavailable, so native Claude research execution remains unverified. Structural checks do not establish cross-host behavioral parity. The [verification record](docs/verification.md) lists the checks and remaining limits.
 
 The [architecture](docs/architecture.md) explains the selected design and its boundaries. [NOTICE.md](NOTICE.md) records pstack source provenance and preserved MIT notices.

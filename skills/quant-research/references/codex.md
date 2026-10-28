@@ -49,3 +49,7 @@ collaboration.spawn_agent(
 ```
 
 Use absolute installed plugin paths in real assignments. Pass source paths and hashes instead of long copied transcripts. When capacity requires sequential agents, preserve separate sessions and review artifacts. The coordinator verifies and publishes receipts; reviewers never write the same dossier path.
+
+## Existing-session campaigns
+
+Route long runs and repeated multi-study missions to [quant-campaign](../../quant-campaign/SKILL.md). The campaign coordinator owns the cumulative ledger and bounded commitments; preserve configured independent seats and private worker outputs. Discover actual native continuation and honor its authorization policy. Durable state supports compaction and manual or native resume but does not schedule wakeups or guarantee host uptime. Do not launch replacement sessions or install hooks.

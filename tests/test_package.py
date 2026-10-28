@@ -26,11 +26,16 @@ class PackageChecks(unittest.TestCase):
         result = subprocess.run([sys.executable, str(self.root / "examples/synthetic/run.py"), "demo", str(Path(self.temp.name) / "research")], capture_output=True, text=True, cwd=self.temp.name)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("independent review BLOCKED", result.stdout)
+        campaign = subprocess.run([sys.executable, str(self.root / "examples/campaign/run.py"), str(Path(self.temp.name) / "campaign")], capture_output=True, text=True, cwd=self.temp.name)
+        self.assertEqual(campaign.returncode, 0, campaign.stderr)
+        packet = json.loads(campaign.stdout)
+        self.assertEqual(packet["remaining_wall_seconds"], 0)
+        self.assertFalse(packet["host_uptime_validated"])
 
     def test_manifest_identity_mismatch_is_rejected(self):
         path = self.root / ".codex-plugin/plugin.json"
         value = json.loads(path.read_text())
-        value["version"] = "0.2.0"
+        value["version"] = "9.9.9"
         path.write_text(json.dumps(value))
         self.assertIn("manifest mismatch", self.check(1).stderr)
 

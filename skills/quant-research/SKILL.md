@@ -5,6 +5,8 @@ description: Coordinate bounded, asset-agnostic quantitative financial research 
 
 # Quantitative research
 
+For long autonomous runs, competing mechanisms, or repeated study programs, use [quant-campaign](../quant-campaign/SKILL.md). If the root contains `charter/spec.json`, run `tools/campaign.py view ROOT` and follow the campaign contract before reusing evidence or assigning work. Individual studies keep their original inspection and scientific gates.
+
 Turn the user's question into a bounded research dossier. Accommodate forecasting, event studies, factor research, risk models, portfolio analysis, and strategy experiments. Choose methods for the question and available data. Never promise alpha.
 
 Resolve the plugin root from this file as `../..`. Resolve all bundled files from that root, even after installation outside a Git checkout. Keep research output in a user-authorized workspace, outside the installed plugin.
