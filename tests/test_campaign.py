@@ -97,6 +97,27 @@ class Campaign(unittest.TestCase):
             self.assertFalse(packet['pending_registrations'])
             self.assertEqual(len(list((self.root/'plans').iterdir())),1)
 
+    def test_child_slot_preflight_leaves_no_reservation(self):
+        self.direction(); self.assign(trials=2); path=self.plan(); plan=e.load(path)
+        plan['study']['budget']['max_trials']=1; path.write_bytes(e.canonical(plan))
+        c.trial(self.root,'a1',path,self.now)
+        plan['id']='extra'; path.write_bytes(e.canonical(plan)); before=c.view(self.root,self.now)
+        with self.assertRaisesRegex(e.Invalid,'trial budget exhausted'):
+            c.trial(self.root,'a1',path,self.now)
+        self.assertEqual(c.view(self.root,self.now)['head'],before['head'])
+        self.assertEqual(len(list((self.root/'plans').iterdir())),1)
+
+    def test_existing_unreserved_trial_preflight_rejects_changed_plan(self):
+        self.direction(); self.assign(); path=self.plan(); plan=e.load(path)
+        e.register(self.root/'studies'/plan['study']['id'],path)
+        plan['hypothesis']='Changed same-ID hypothesis'; path.write_bytes(e.canonical(plan))
+        before=c.view(self.root,self.now)
+        with self.assertRaises(e.Invalid): c.trial(self.root,'a1',path,self.now)
+        packet=c.view(self.root,self.now)
+        self.assertEqual(packet['head'],before['head'])
+        self.assertEqual(packet['charged_trials'],0)
+        self.assertFalse((self.root/'plans').exists())
+
     def test_abandoned_registration_retains_charge_and_allows_other_work(self):
         self.direction(); self.assign(); path=self.plan()
         def crash(): raise RuntimeError('registration unavailable after reservation')
@@ -105,7 +126,11 @@ class Campaign(unittest.TestCase):
         packet=c.view(self.root,self.now); slot=packet['pending_registrations'][0]
         proposal={'kind':'abandon_registration','reservation':slot,'reason':'Unexecuted interrupted registration',
                   'evidence':[self.ref('failure','Observed post-reservation interruption; no child registration exists.')]}
-        self.put(proposal)
+        for bad in ({**proposal,'reservation':'unknown'}, {**proposal,'evidence':[]}):
+            with self.assertRaises(e.Invalid): self.put(bad)
+        settled=self.put(proposal)
+        self.assertEqual(settled['reservations'][slot]['registration_state'],'abandoned')
+        self.assertTrue((self.root/'plans'/slot/'plan.json').exists())
         self.assertEqual(c.view(self.root,self.now)['charged_trials'],1)
         self.assertFalse(c.view(self.root,self.now)['pending_registrations'])
         with self.assertRaises(e.Invalid): c.trial(self.root,'a1',path,self.now)
@@ -124,6 +149,16 @@ class Campaign(unittest.TestCase):
             self.put({'kind':'abandon_registration','reservation':slot,'reason':'Do not erase work','evidence':[self.ref('failure')]})
         self.assertEqual(c.view(self.root,self.now)['head'],head)
         self.assertFalse(c.trial(self.root,'a1',path,self.now)['pending_registrations'])
+
+    def test_free_text_unblock_is_rejected_before_publication(self):
+        self.direction()
+        self.put({'kind':'terminal','status':'externally_blocked','rationale':'No input','unresolved':'Input',
+                  'next':'Await authorization','unblock':'Input authorized','routes_considered':'No useful permitted route'})
+        before=c.view(self.root,self.now)
+        with self.assertRaises(e.Invalid):
+            self.put({'kind':'frontier','direction':'d1','state':'active','rationale':'Claimed access change',
+                      'reopen':'Authorization','reversal':'Revoked','review':self.review(),'unblock_basis':'Uncited assertion'})
+        self.assertEqual(c.view(self.root,self.now)['head'],before['head'])
 
     def test_reviewed_unblock_requires_cited_nonreview_basis(self):
         self.direction()
