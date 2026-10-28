@@ -1,0 +1,13 @@
+{
+  "name": "pstack-quant",
+  "owner": {
+    "name": "jameswm2"
+  },
+  "plugins": [
+    {
+      "name": "pstack-quant",
+      "source": "./",
+      "description": "Bounded quantitative research with independent review and immutable evidence dossiers."
+    }
+  ]
+}
