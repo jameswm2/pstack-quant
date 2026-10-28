@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "mission": "Compare timing and compensation mechanisms",
+  "scope": [
+    "timing",
+    "compensation"
+  ],
+  "completion": "Discriminate plausible mechanisms and expose uncertainty",
+  "resources": {
+    "data": "synthetic local only",
+    "compute": "local CPU"
+  },
+  "coordinator": "owner",
+  "wall_seconds": 72000,
+  "trial_limit": 8,
+  "reserve_seconds": 7200,
+  "reserve_trials": 1,
+  "triggers": {
+    "units": 3,
+    "same_family": 2,
+    "no_information": 2,
+    "failures": 2,
+    "active_minutes": 30
+  }
+}

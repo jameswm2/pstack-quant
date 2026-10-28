@@ -71,7 +71,7 @@ def check(root: Path) -> list[str]:
             relative = target.split("#", 1)[0]
             destination = (path.parent / relative).resolve()
             require(destination.is_relative_to(root) and destination.exists(), f"broken or escaping link in {path.relative_to(root)}: {target}")
-    for name in ("tools/evidence.py", "examples/synthetic/run.py", "tests/test_evidence.py", "docs/architecture.md", "README.md", "NOTICE.md", "LICENSE", "licenses/pstack-MIT.txt", ".github/workflows/check.yml"):
+    for name in ("tools/evidence.py", "tools/campaign.py", "examples/campaign/run.py", "examples/campaign/charter.json", "tests/test_campaign.py", "skills/quant-campaign/references/campaign.md", "examples/synthetic/run.py", "tests/test_evidence.py", "docs/architecture.md", "README.md", "NOTICE.md", "LICENSE", "licenses/pstack-MIT.txt", ".github/workflows/check.yml"):
         require((root / name).is_file(), f"missing package artifact: {name}")
     for name in ("LICENSE", "licenses/pstack-MIT.txt"):
         require("Permission is hereby granted, free of charge" in (root / name).read_text(), f"missing MIT notice: {name}")
