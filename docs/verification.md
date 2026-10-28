@@ -4,7 +4,7 @@ The coordinator verified the implementation on 2026-10-28. These checks establis
 
 ## Local behavior
 
-`python3 -m unittest discover -s tests -v` passed all 24 behavioral tests on Python 3.14. The implementation owner also ran the suite on Python 3.12. Tests exercise the public CLI, concurrent budget accounting, retry conflicts, missing or altered artifacts, review bindings and declared independence, failed attempts, and relocated installation without Git metadata.
+`python3 -m unittest discover -s tests -v` passed all 27 behavioral tests on Python 3.14 after the final recovery fix. The implementation owner also ran the earlier 24-test suite on Python 3.12. Tests exercise the public CLI, concurrent budget accounting, retry conflicts, missing or altered artifacts, review bindings and declared independence, failed attempts, and relocated installation without Git metadata.
 
 `python3 tools/check_package.py` passed for all seven shared skills. Both host manifests, marketplace paths, local links, provenance, and example paths passed. `git diff --check main...HEAD` reported no whitespace errors.
 
@@ -13,6 +13,8 @@ Two fresh standalone demo runs produced matching development data, metrics, and 
 The future-information negative control returned code `1` with `AssertionError: future information at decision time`. It failed at the temporal boundary rather than an unrelated exception.
 
 During implementation, focused regression tests first failed with `symlink is not allowed` for a normal parent alias and `runner silently ignored changed registered splits` for an unsupported registered design. Both tests pass after their fixes. The coordinator reran them in the complete suite.
+
+Independent review found a receipt-recovery defect. Before its fix, interrupted review and decision staging caused `unsafe or invalid identifier`, exit `2`, and invalid integrity. The regression tests and fresh independent CLI verification now preserve valid complete or incomplete evidence, report interrupted staging, and still reject malformed published receipts, pending files, and symlinks. The [review record](review.md) describes the panel and forward test.
 
 ## Host discovery
 
