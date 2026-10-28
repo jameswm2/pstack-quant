@@ -2,6 +2,7 @@
 """Durable campaign decisions for an existing host session; never launches research."""
 from __future__ import annotations
 import argparse
+import copy
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
@@ -18,6 +19,7 @@ class Kind(str, Enum):
     TERMINAL = 'terminal'
     RESERVED = 'reserved'
     REGISTERED = 'registered'
+    ABANDON_REGISTRATION = 'abandon_registration'
 
 
 @dataclass
@@ -99,9 +101,11 @@ def fold(state, record):
             state.checkpoint = len(state.records) + 1
             state.selected_direction = p.get('selected_direction')
     elif kind == Kind.RESERVED:
-        state.reservations[p['id']] = {**p, 'registered': False}
+        state.reservations[p['id']] = {**p, 'registration_state': 'pending'}
     elif kind == Kind.REGISTERED:
-        state.reservations[p['id']]['registered'] = True
+        state.reservations[p['id']]['registration_state'] = 'registered'
+    elif kind == Kind.ABANDON_REGISTRATION:
+        state.reservations[p['reservation']]['registration_state'] = 'abandoned'
     elif kind == Kind.TERMINAL:
         state.status = 'open' if p['status'] == 'host_needs_continuation' else p['status']
     state.records.append(record)
@@ -171,10 +175,11 @@ def reconciliation(root, state):
             for plan, reg in e.registrations(study_root, study):
                 reservation = known.get((study['id'], plan.id))
                 if reservation is None: issues.append(f'unreserved trial: {study["id"]}/{plan.id}')
+                elif reservation['registration_state'] == 'abandoned': issues.append(f'abandoned reservation has child registration: {reservation["id"]}')
                 elif reservation['plan_sha256'] != reg.value['plan_sha256']: issues.append('reserved plan changed')
     for reservation in state.reservations.values():
         path = root / 'studies' / reservation['study'] / 'trials' / reservation['trial'] / 'registration.json'
-        if reservation['registered'] and not path.exists(): issues.append(f'missing registered trial: {reservation["id"]}')
+        if reservation['registration_state'] == 'registered' and not path.exists(): issues.append(f'missing registered trial: {reservation["id"]}')
     return issues
 
 
@@ -222,7 +227,7 @@ def validate(root, state, p, now):
         e.require(end <= timestamp(state.charter['deadline']) - timedelta(seconds=0 if reserve else c['reserve_seconds']), 'assignment enters protected reserve or exceeds deadline')
         e.require(len(state.reservations) + p['trials'] <= c['trial_limit'] - (0 if reserve else c['reserve_trials']), 'assignment exceeds trial capacity or reserve')
         e.require(not reconciliation(root, state), 'unreconciled child registrations block spending')
-        e.require(not any(not r['registered'] for r in state.reservations.values()), 'pending registration must be recovered first')
+        e.require(not any(r['registration_state'] == 'pending' for r in state.reservations.values()), 'pending registration must be recovered first')
         if due(state) and not reserve and state.selected_direction != p['direction']:
             review(root, state, p, True)
             x = p.get('depth_exception')
@@ -244,7 +249,8 @@ def validate(root, state, p, now):
             first_diagnostic = p['action'] == 'diagnose' and not any(a['action'] == 'diagnose' for a in family_work)
             e.require(first_diagnostic or changed_basis, 'repeated family failure requires one bounded diagnosis or fresh non-review repair evidence')
     elif kind == Kind.CLOSE:
-        e.require(p['assignment'] == state.current, 'not the active assignment')
+        e.identifier(p['assignment'])
+        e.require(state.current is not None and p['assignment'] == state.current, 'not the active assignment')
         texts(p, 'summary next')
         e.require(p['execution'] in {'completed', 'failed', 'abandoned'}, 'invalid execution')
         e.require(p['outcome'] in e.OUTCOMES, 'invalid outcome')
@@ -254,13 +260,13 @@ def validate(root, state, p, now):
         if p['execution'] != 'completed': texts(p, 'failure_signature')
         e.require(bool(p.get('evidence')), 'closure requires evidence')
         for reservation in state.reservations.values():
-            if reservation['assignment'] == state.current and reservation['registered']:
+            if reservation['assignment'] == state.current and reservation['registration_state'] == 'registered':
                 inspection = e.inspect(root / 'studies' / reservation['study'])
                 if p['outcome'] in {'supported', 'negative'}:
                     trial = next(t for t in inspection['trials'] if t['id'] == reservation['trial'])
                     e.require(not trial['blockers'] and trial['financial_outcome'] == p['outcome'], 'study scientific gates remain blocked or outcome differs')
         if p['outcome'] in {'supported', 'negative'}:
-            e.require(any(r['assignment'] == state.current and r['registered'] for r in state.reservations.values()), 'scientific outcome requires registered study evidence')
+            e.require(any(r['assignment'] == state.current and r['registration_state'] == 'registered' for r in state.reservations.values()), 'scientific outcome requires registered study evidence')
     elif kind == Kind.FRONTIER:
         e.require(state.current is None and p['direction'] in state.directions, 'frontier requires closed assignment and known direction')
         e.require(p['state'] in {'unexplored', 'active', 'parked', 'retired', 'replication_candidate'}, 'unknown direction state')
@@ -275,11 +281,19 @@ def validate(root, state, p, now):
                 e.require(state.directions[choice]['family'] != previous_family, 'same-family continuation requires bounded depth exception on assignment')
         if state.status == 'externally_blocked':
             review(root, state, p, True)
-            texts(p, 'unblock_basis')
+            basis = {ref['sha256'] for ref in p.get('evidence', []) if ref['sha256'] != e.digest(e.canonical(p['review']))}
+            e.require(p.get('unblock_basis') in basis, 'unblock_basis must name cited non-review changed-feasibility evidence')
         if p.get('coverage'):
             e.require(any(ref['sha256'] != e.digest(e.canonical(p.get('review'))) for ref in p.get('evidence', [])), 'coverage requires evidence distinct from review')
             e.require(p.get('coverage_status') in {'unknown','unsupported','contested','resolved'}, 'explicit coverage status required')
             e.require(set(p['coverage']) <= set(c['scope']), 'unknown coverage')
+    elif kind == Kind.ABANDON_REGISTRATION:
+        reservation = state.reservations.get(p.get('reservation'))
+        e.require(reservation is not None and reservation['registration_state'] == 'pending', 'known pending reservation required')
+        texts(p, 'reason')
+        e.require(bool(p.get('evidence')), 'registration abandonment requires cited failure/accounting evidence')
+        child = root / 'studies' / reservation['study'] / 'trials' / reservation['trial']
+        e.require(not child.exists(), 'child trial exists; recover registration instead')
     elif kind == Kind.TERMINAL:
         e.require(state.current is None, 'close active assignment before terminal decision')
         e.require(p['status'] in {'complete', 'budget_exhausted', 'externally_blocked', 'host_needs_continuation'}, 'unknown terminal status')
@@ -300,6 +314,10 @@ def validate(root, state, p, now):
 
 def append(root, state, payload, now):
     record = {'sequence': len(state.records)+1, 'previous': state.head, 'key': payload['key'], 'at': now.isoformat(), 'payload_sha256': e.digest(e.canonical(payload)), 'payload': payload}
+    e.require(not any(r['key'] == record['key'] for r in state.records), 'duplicate operation key')
+    now_check(state, now)
+    candidate = copy.deepcopy(state)
+    fold(candidate, record)
     e.publish(root / 'events' / f'{record["sequence"]:06d}', {'record.json': e.canonical(record)})
     fold(state, record)
     return state
@@ -331,46 +349,68 @@ def commit(root: Path, proposal: dict, expected: str, now=None):
     return view(root, now)
 
 
+def child_preflight(root, plan):
+    spec = root / 'study/spec.json'
+    if spec.exists():
+        study = e.parse_study(e.load(spec))
+        e.require(plan.value['study'] == study, 'study protocol and budget are frozen')
+        current = e.registrations(root, study)
+        matching = [p for p, _ in current if p.id == plan.id]
+        if matching:
+            e.require(matching[0].value == plan.value, 'immutable registration conflict')
+        else:
+            e.require(len(current) < study['budget']['max_trials'], 'trial budget exhausted')
+    target = root / 'trials' / plan.id
+    if target.exists():
+        expected = {'schema':1,'trial_id':plan.id,'plan_sha256':e.digest(e.canonical(plan.value)),
+                    'study_sha256':e.digest(e.canonical(plan.value['study']))}
+        e.require(e.load(target / 'plan.json') == plan.value and e.load(target / 'registration.json') == expected,
+                  'immutable registration conflict')
+
+
 def trial(root: Path, assignment: str, plan_file: Path, now=None, _after_reserve=None, _after_register=None):
     now = now or utc(); root = e.canonical_root(root)
     plan = e.parse_plan(e.load(plan_file)); study = plan.value['study']['id']
-    slot = f'{study}--{plan.id}'; plan_hash = e.digest(e.canonical(plan.value))
+    slot = e.digest(e.canonical([study, plan.id])); plan_hash = e.digest(e.canonical(plan.value))
     with e.register_lock(root):
         state = replay(root)
         r = state.reservations.get(slot)
         if r:
+            e.require(r['registration_state'] != 'abandoned', 'registration was permanently abandoned')
             e.require(r['plan_sha256'] == plan_hash and r['assignment'] == assignment, 'conflicting trial retry')
         else:
             now_check(state, now)
             e.require(state.status == 'open' and state.current == assignment, 'trial requires active assignment')
             a = state.assignments[assignment]; c = state.charter['charter']
             e.require(now < timestamp(a['opened'])+timedelta(seconds=a['seconds']) and now < timestamp(state.charter['deadline']), 'assignment expired')
-            e.require(all(v['registered'] for v in state.reservations.values()), 'recover pending registration before new trial')
+            e.require(all(v['registration_state'] != 'pending' for v in state.reservations.values()), 'recover pending registration before new trial')
             issues = reconciliation(root, state)
             own_unreserved = f'unreserved trial: {study}/{plan.id}'
             e.require(not [issue for issue in issues if issue != own_unreserved], 'unreserved child registration blocks spending')
             e.require(len([v for v in state.reservations.values() if v['assignment'] == assignment]) < a['trials'], 'assignment trial cap exhausted')
             e.require(len(state.reservations) < c['trial_limit']-(0 if a['action'] in {'synthesize','replicate'} else c['reserve_trials']), 'global trial reserve exhausted')
-            r = {'kind':'reserved','key':f'reserve-{slot}','id':slot,'assignment':assignment,'study':study,'trial':plan.id,'plan_sha256':plan_hash}
+            child_preflight(root / 'studies' / study, plan)
+            r = {'kind':'reserved','key':f'internal:reserve:{slot}','id':slot,'assignment':assignment,'study':study,'trial':plan.id,'plan_sha256':plan_hash}
             e.publish(root / 'plans' / slot, {'plan.json': e.canonical(plan.value)})
             append(root, state, r, now)
         if _after_reserve: _after_reserve()
         reg = e.register(root / 'studies' / study, root / 'plans' / slot / 'plan.json')
         if _after_register: _after_register()
-        if not state.reservations[slot]['registered']:
-            append(root, state, {'kind':'registered','key':f'register-{slot}','id':slot,'registration':reg.value}, max(now, timestamp(state.records[-1]['at'])))
+        if state.reservations[slot]['registration_state'] == 'pending':
+            append(root, state, {'kind':'registered','key':f'internal:register:{slot}','id':slot,'registration':reg.value}, max(now, timestamp(state.records[-1]['at'])))
     return view(root, now)
 
 
 def view(root: Path, now=None):
     now = now or utc(); root = e.canonical_root(root); state = replay(root)
     c = state.charter['charter']; issues = reconciliation(root, state)
-    pending = [r['id'] for r in state.reservations.values() if not r['registered']]
+    pending = [r['id'] for r in state.reservations.values() if r['registration_state'] == 'pending']
     backwards = now < timestamp(state.records[-1]['at'] if state.records else state.charter['started'])
     remaining = max(0, int((timestamp(state.charter['deadline'])-now).total_seconds()))
     current = state.assignments.get(state.current)
     overrun = bool(current and now > timestamp(current['opened'])+timedelta(seconds=current['seconds']))
-    if state.status != 'open': action = 'report terminal decision'
+    if state.status == 'externally_blocked': action = 'report blockage or commit reviewed frontier with cited non-review unblock_basis when feasibility changes'
+    elif state.status != 'open': action = 'report terminal decision'
     elif pending: action = 'retry trial with frozen reserved plan'
     elif issues: action = 'reconcile unreserved trials before spending'
     elif backwards: action = 'wait for last observed UTC before spending'
@@ -381,7 +421,7 @@ def view(root: Path, now=None):
     elif due(state): action = 'independent frontier challenge before routine research'
     else: action = 'compare alternatives and commit bounded assignment'
     inspections = {}
-    for study in {r['study'] for r in state.reservations.values() if r['registered']}:
+    for study in {r['study'] for r in state.reservations.values() if r['registration_state'] == 'registered'}:
         inspections[study] = e.inspect(root / 'studies' / study)
     next_command = [sys.executable, str(Path(__file__).resolve()), 'view', str(root), '--json']
     if pending:
