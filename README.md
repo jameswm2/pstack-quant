@@ -12,6 +12,18 @@ justify depth, preserve failures, and reserve time for synthesis. Stop early if 
 
 The skill frames mission-specific constraints before freezing a charter. Twenty hours is a ceiling, including host downtime. Durable state supports recovery; it does not guarantee host liveness. Native continuation is used only when available and authorized. No external launcher, daemon, global hook, or replacement session is installed.
 
+For unattended continuation, explicitly authorize the host's native Goal or continuation loop when available:
+
+```text
+Use quant-campaign for [mission] with [authorized data and compute] and [trial cap].
+Create a native Goal or continuation loop for this campaign if this host provides one.
+Continue bounded work for up to 20 wall hours, preserving the original deadline on resume.
+Stop on independently reviewed adequacy, budget exhaustion, or an unresolved external prerequisite.
+Finish with an evidence-linked report of findings, coverage gaps, and unresolved review gates.
+```
+
+Without native continuation, the coordinator works through the active host turn and saves a concrete resume action at the host boundary.
+
 ```sh
 python3 tools/campaign.py start research/campaign --charter examples/campaign/charter.json
 python3 tools/campaign.py view research/campaign --json
@@ -117,6 +129,6 @@ python3 tools/check_package.py
 
 Tests exercise real CLI commands, budget races, retry conflicts, failed attempts, tampering, unsafe paths, review binding and declared independence, blocked holdouts, and repeatable offline outputs. CI runs stdlib checks on supported Python versions and separately runs the official Claude CLI's manifest validator. That validator does not execute models or research.
 
-Native Codex `0.160.0` previously discovered the v0.1 package as `pstack-quant@pstack-quant`, version `0.1.0`, using an explicit local marketplace source. Discovery does not establish installation or skill execution. Local Claude CLI execution was unavailable, so native Claude research execution remains unverified. Structural checks do not establish cross-host behavioral parity. The [verification record](docs/verification.md) lists the checks and remaining limits.
+Native Codex `0.160.0` discovered this package as `pstack-quant@pstack-quant`, version `0.2.0`, using an explicit local marketplace source. Discovery does not establish installation or skill execution. Local Claude CLI execution was unavailable, so native Claude research execution remains unverified. Structural checks do not establish cross-host behavioral parity. The [verification record](docs/verification.md) lists the checks and remaining limits.
 
 The [architecture](docs/architecture.md) explains the selected design and its boundaries. [NOTICE.md](NOTICE.md) records pstack source provenance and preserved MIT notices.

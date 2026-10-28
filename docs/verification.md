@@ -1,24 +1,36 @@
 # Verification record
 
-The coordinator verified the implementation on 2026-10-28. These checks establish local package and evidence behavior, not research validity or native cross-host model execution.
+The coordinator verified version 0.2.0 at `ebbe17a` on 2026-10-28. Subsequent documentation changes preserve the tested runtime and package sources. These checks establish local behavior and packaging. Actual twenty-hour host uptime and native Claude research execution remain unverified.
 
 ## Local behavior
 
-`python3 -m unittest discover -s tests -v` passed all 27 behavioral tests on Python 3.14 after the final recovery fix. The implementation owner also ran the earlier 24-test suite on Python 3.12. Tests exercise the public CLI, concurrent budget accounting, retry conflicts, missing or altered artifacts, review bindings and declared independence, failed attempts, and relocated installation without Git metadata.
+```sh
+python3 -m unittest discover -s tests -v
+python3 tools/check_package.py
+```
 
-`python3 tools/check_package.py` passed for all seven shared skills. Both host manifests, marketplace paths, local links, provenance, and example paths passed. `git diff --check main...HEAD` reported no whitespace errors.
+All 57 tests passed on Python 3.14. Tests exercise actual CLI processes and files, concurrent stale writers, retry conflicts, tampered artifacts, review bindings, permanent trial accounting, interrupted registration, family-level fixation, bounded diagnostic repair, coverage adequacy, deadlines, and reserves. The relocated-package test runs both examples without Git metadata.
 
-Two fresh standalone demo runs produced matching development data, metrics, and source files. The coordinator compared their SHA-256 digests. Both runs generated only development rows, left the holdout ungenerated, and created no review receipts. Inspection returned code `1` with valid integrity, a negative development outcome, blocked research disposition, and four missing independent review seats. This is the intended partial-dossier result.
+The package checker passed for eight shared skills at version 0.2.0. It checks manifests, marketplace paths, local links, provenance, and example paths. `git diff --check 39669e5..HEAD` passed. `tools/evidence.py` is unchanged from the merged version 0.1 baseline.
 
-The future-information negative control returned code `1` with `AssertionError: future information at decision time`. It failed at the temporal boundary rather than an unrelated exception.
+## Accelerated campaign
 
-During implementation, focused regression tests first failed with `symlink is not allowed` for a normal parent alias and `runner silently ignored changed registered splits` for an unsupported registered design. Both tests pass after their fixes. The coordinator reran them in the complete suite.
+```sh
+python3 examples/campaign/run.py /tmp/new-campaign-demo
+python3 tools/campaign.py view /tmp/new-campaign-demo --json
+```
 
-Independent review found a receipt-recovery defect. Before its fix, interrupted review and decision staging caused `unsafe or invalid identifier`, exit `2`, and invalid integrity. The regression tests and fresh independent CLI verification now preserve valid complete or incomplete evidence, report interrupted staging, and still reject malformed published receipts, pending files, and symlinks. The [review record](review.md) describes the panel and forward test.
+The coordinator ran the example in a fresh directory after the final runtime fix. It ended `budget_exhausted` with one permanently charged trial and zero remaining wall seconds. A separate production `view` reported no clock regression and preserved the charge, child-study blockers, continuation prompt, and next command.
+
+The example injects a simulated UTC clock to cross a twenty-hour boundary. Its priority receipts are explicitly educational fixtures. Real scientific review seats remain missing and blocked. This trace verifies deadline and recovery behavior without measuring host uptime or producing a market finding.
+
+## Independent acceptance
+
+Three independent implementation reviewers inspected the campaign changes. A fresh reviewer then ran 14 targeted checks against the accepted durability fixes. All passed with no further findings. Each original reviewer also completed four raw research scenarios, producing 12 instruction assessments. The coordinator read all 12 reports. The [campaign review record](campaign-review.md) describes their scope and limits.
 
 ## Host discovery
 
-The installed Codex CLI reported version `0.160.0`. This command enumerated the final package with the correct identity, version, local source, and installation policy without changing user configuration:
+Codex CLI `0.160.0` enumerated `pstack-quant@pstack-quant`, version `0.2.0`, using this command with the actual checkout path:
 
 ```sh
 codex -c 'marketplaces.pstack-quant.source_type="local"' \
@@ -26,18 +38,16 @@ codex -c 'marketplaces.pstack-quant.source_type="local"' \
   plugin list --available --json --marketplace pstack-quant
 ```
 
-Discovery is verified. Installation into a user's host profile and research execution by a native host model are not verified by listing a package.
+The returned source was the local checkout and the installation policy was `AVAILABLE`. This command did not change user configuration. Discovery does not establish installation or native model execution.
 
-The original local verification environment had no Claude Code CLI. A separate CI job invokes the official CLI's manifest validator. Remote CI had not run during that initial verification. Neither static checks nor manifest validation establish native Claude research execution.
+Local Claude CLI execution was unavailable. A separate CI job invokes the official Claude CLI's manifest validator. Manifest validation establishes packaging only. It does not execute research models or establish parity between hosts.
 
-## Delivery
+## Preserved study evidence
 
-The target is `https://github.com/jameswm2/pstack-quant`. During the initial local build, the connected GitHub integration rejected file creation with HTTP 403, `Resource not accessible by integration`. Shell GitHub access failed DNS resolution, and the browser fallback required unavailable approval. That run produced verified local archives without creating remote changes.
+The merged version 0.1 checks remain in the complete suite. Two fresh standalone synthetic runs previously produced matching scientific artifacts. Both generated development data only, left the holdout ungenerated, and created no reviewer receipts. Inspection reported valid integrity, a negative development outcome, blocked research disposition, and four missing independent seats.
 
-On resumption, network access and an authenticated GitHub CLI became available. The repository now had an initial placeholder commit. Publication preserves that commit as feature-branch ancestry and replaces its trivial `readme` placeholder with the complete `README.md`. The reviewed implementation is delivered on `codex/quant-research-orchestration` through a pull request against the existing `main` branch. No force push, merge into `main`, or public plugin-directory release is part of this delivery.
+The future-information control failed with `AssertionError: future information at decision time`. Earlier regression checks reproduced interrupted review and decision staging defects before their repair. The [study review record](review.md) preserves the independent panel and fix verification.
 
-## Version 0.2 campaign verification
+## Limits
 
-The campaign controller adds offline tests with real CLI processes and immutable files, plus injected internal UTC time for the wall horizon. Coverage includes concurrent stale writers, exact and conflicting retries, changed evidence and plans, deadline preservation, synthesis reserves, permanent global trial charges, pre-registration and post-registration crash recovery, unreserved adoption, family-scoped fixation and diagnostic repair, early adequacy gating, and context recovery. The relocated package test runs both examples without Git.
-
-`python3 examples/campaign/run.py NEW_ROOT` is an educational accelerated trace. Its priority review receipts are labelled fixtures, all real scientific reviewers remain absent, and its simulated twenty-hour boundary does not measure host uptime. The unchanged study tests retain their raw independent-gate checks. `python3 tools/check_package.py` discovers eight skills and campaign artifacts at version 0.2.0. Earlier native discovery receipts above apply to v0.1; they do not establish v0.2 host behavior.
+Fixture reviews cannot approve real research. The controller validates cited artifacts, declared identities, state transitions, and cumulative accounting for cooperating callers. It does not authenticate a reviewer's work, establish data truth or statistical validity, isolate a holdout at the operating-system level, or prevent an actor from rewriting the whole evidence tree. The [architecture](architecture.md) and [evidence reference](../skills/quant-research/references/evidence.md) define those boundaries.
