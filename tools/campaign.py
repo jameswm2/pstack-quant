@@ -352,14 +352,12 @@ def trial(root: Path, assignment: str, plan_file: Path, now=None, _after_reserve
             e.require(len([v for v in state.reservations.values() if v['assignment'] == assignment]) < a['trials'], 'assignment trial cap exhausted')
             e.require(len(state.reservations) < c['trial_limit']-(0 if a['action'] in {'synthesize','replicate'} else c['reserve_trials']), 'global trial reserve exhausted')
             r = {'kind':'reserved','key':f'reserve-{slot}','id':slot,'assignment':assignment,'study':study,'trial':plan.id,'plan_sha256':plan_hash}
-            # The plan is frozen alongside the reservation, so recovery needs no mutable caller file.
             e.publish(root / 'plans' / slot, {'plan.json': e.canonical(plan.value)})
             append(root, state, r, now)
         if _after_reserve: _after_reserve()
         reg = e.register(root / 'studies' / study, root / 'plans' / slot / 'plan.json')
         if _after_register: _after_register()
         if not state.reservations[slot]['registered']:
-            # Recovery records the existing charge even after its spending window closes.
             append(root, state, {'kind':'registered','key':f'register-{slot}','id':slot,'registration':reg.value}, max(now, timestamp(state.records[-1]['at'])))
     return view(root, now)
 

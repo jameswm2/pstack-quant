@@ -37,7 +37,7 @@ Invoke `$quant-campaign` directly or use normal domain-appropriate skill selecti
 ```text
 /plugin marketplace add /absolute/path/to/pstack-quant
 /plugin install pstack-quant@pstack-quant
-/pstack-quant:quant-research Design a bounded publication-lagged forecasting experiment.
+/pstack-quant:quant-campaign Research [mission] for up to 20 wall hours using [authorized data and compute] with [trial cap].
 ```
 
 For a local Claude packaging check, run `claude plugin validate .` from this repository. For a local session without marketplace installation, use `claude --plugin-dir /absolute/path/to/pstack-quant`.

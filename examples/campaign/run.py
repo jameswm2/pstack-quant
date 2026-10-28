@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Accelerated educational campaign. Every review is an explicit fixture, not model validation."""
 from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
@@ -62,7 +61,6 @@ def simulate(root):
     close()
     put({'kind':'frontier','direction':'compensation','state':'retired','rationale':'Educational negative diagnostic rejects its premise; this is not a scientific financial outcome','reopen':'New mechanism or changed evidence','reversal':'Valid contradictory observation','coverage':['compensation'],'coverage_status':'unsupported','evidence':[artifact('negative-diagnostic.json',{'fixture':True,'negative_diagnostic':'Compensation prediction absent in educational dossier'})]},True)
     put({'kind':'frontier','direction':'timing','state':'active','rationale':'Fixture repaired inputs permit falsification','reopen':'Validated input available','reversal':'Input validation fails'})
-    # Two routine same-family commitments trigger a real gate; this exception grants one bounded unit.
     assign('short-check','timing',1800); now += timedelta(minutes=30); close(information=False)
     assign('short-check-2','timing',600); now += timedelta(minutes=10); close(information=False)
     basis=artifact('live-discriminator.json',{'fixture':True,'new_observation':'Repair creates an identifiable timing discriminator'})
