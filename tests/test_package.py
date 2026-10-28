@@ -1,4 +1,3 @@
-"""Validate a relocated installed tree and reject broken package contracts."""
 import json
 from pathlib import Path
 import shutil

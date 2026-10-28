@@ -1,4 +1,3 @@
-"""Public CLI behavior and evidence boundaries. Review fixtures are declared test identities."""
 import copy
 import json
 from pathlib import Path
@@ -50,7 +49,6 @@ class EvidenceCLI(unittest.TestCase):
         return json.loads(self.cli("inspect", self.run, "--json", code=code).stdout)
 
     def reviews(self, *, verdict="accept"):
-        """Test fixture only. Production example never calls this method."""
         info = self.inspect()["trials"][0]
         for i, seat in enumerate(self.plan["study"]["review_seats"]):
             receipt = {"schema": 1, "id": f"review{i}", "trial_id": "t001", "seat_id": seat["id"], "reviewer_id": f"test-independent-{i}",

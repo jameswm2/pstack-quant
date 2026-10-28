@@ -220,7 +220,6 @@ def parse_execution(value: dict, plan: TrialPlan) -> dict:
 
 @contextmanager
 def register_lock(root: Path):
-    # Advisory locking serializes budget accounting and releases on process exit.
     path = safe_path(root / ".register.lock")
     with path.open("a+b") as lock:
         if os.name == "nt":

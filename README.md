@@ -6,22 +6,24 @@ The plugin supplies shared skills and a Python evidence helper. It does not supp
 
 ## Install and invoke
 
-For Codex, add the repository marketplace and install the plugin:
+From an unpacked local copy, add the marketplace and install the plugin in Codex:
 
 ```sh
-codex plugin marketplace add jameswm2/pstack-quant
+codex plugin marketplace add /absolute/path/to/pstack-quant
 codex plugin add pstack-quant@pstack-quant
 ```
 
 Invoke `$quant-research` directly or use normal domain-appropriate skill selection. For Claude Code, run these commands in its interactive session:
 
 ```text
-/plugin marketplace add jameswm2/pstack-quant
+/plugin marketplace add /absolute/path/to/pstack-quant
 /plugin install pstack-quant@pstack-quant
 /pstack-quant:quant-research Design a bounded publication-lagged forecasting experiment.
 ```
 
 For a local Claude packaging check, run `claude plugin validate .` from this repository. For a local session without marketplace installation, use `claude --plugin-dir /absolute/path/to/pstack-quant`.
+
+After this implementation is published to `jameswm2/pstack-quant`, the same marketplace commands accept `jameswm2/pstack-quant` instead of the local path. Repository publication is currently pending because the connected GitHub integration rejected file creation with HTTP 403. The local package is complete independently of that connection.
 
 The plugin has no session hooks and does not change user configuration. It uses the host's available dispatch tools and existing pstack model configuration. Required reviewers remain blocked when independent agents cannot run. Repeated configured model entries always mean separate sessions.
 
@@ -95,6 +97,6 @@ python3 tools/check_package.py
 
 Tests exercise real CLI commands, budget races, retry conflicts, failed attempts, tampering, unsafe paths, review binding and declared independence, blocked holdouts, and repeatable offline outputs. CI runs stdlib checks on supported Python versions and separately runs the official Claude CLI's manifest validator. That validator does not execute models or research.
 
-Native Codex marketplace discovery was verified with Codex `0.160.0` against a local packaging probe during development. Native discovery of this final plugin is checked separately during integration. Discovery does not establish installation or skill execution. Local Claude CLI execution was unavailable, so native Claude research execution remains unverified. Structural checks do not establish cross-host behavioral parity.
+Native Codex `0.160.0` discovered this final package as `pstack-quant@pstack-quant`, version `0.1.0`, using an explicit local marketplace source. Discovery does not establish installation or skill execution. Local Claude CLI execution was unavailable, so native Claude research execution remains unverified. Structural checks do not establish cross-host behavioral parity. The [verification record](docs/verification.md) lists the checks and remaining limits.
 
 The [architecture](docs/architecture.md) explains the selected design and its boundaries. [NOTICE.md](NOTICE.md) records pstack source provenance and preserved MIT notices.
